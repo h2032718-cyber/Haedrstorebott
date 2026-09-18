@@ -13,3 +13,5 @@ backup_*/
 data/*.before_*
 data/*.after_*
 data/*.v1_stable
+backups/
+reports/
