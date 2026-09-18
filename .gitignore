@@ -7,3 +7,9 @@ data/*.db
 data/*.db-journal
 backup_*/
 .DS_Store
+*.before_*
+*.after_*
+*.v1_stable
+data/*.before_*
+data/*.after_*
+data/*.v1_stable
