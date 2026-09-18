@@ -14,8 +14,10 @@ def init_db():
     c.execute("CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, emoji TEXT DEFAULT 'X', image_id TEXT DEFAULT '', position INTEGER DEFAULT 0, active INTEGER DEFAULT 1)")
     c.execute("CREATE TABLE IF NOT EXISTS subcategories (id INTEGER PRIMARY KEY AUTOINCREMENT, category_id INTEGER, name TEXT, emoji TEXT DEFAULT 'X', image_id TEXT DEFAULT '', phone TEXT DEFAULT '', position INTEGER DEFAULT 0, active INTEGER DEFAULT 1)")
     c.execute("CREATE TABLE IF NOT EXISTS groups (id INTEGER PRIMARY KEY AUTOINCREMENT, subcategory_id INTEGER, name TEXT, emoji TEXT DEFAULT 'X', position INTEGER DEFAULT 0, active INTEGER DEFAULT 1)")
-    c.execute("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER, subcategory_id INTEGER, name TEXT, description TEXT DEFAULT '', image_id TEXT DEFAULT '', data_type TEXT DEFAULT 'id', pricing_type TEXT DEFAULT 'fixed', price_syp TEXT DEFAULT '', price_usd TEXT DEFAULT '', rate_syp REAL DEFAULT 0, rate_usd REAL DEFAULT 0, min_qty REAL DEFAULT 0, max_qty REAL DEFAULT 0, commission_percent REAL DEFAULT 0, unit_name TEXT DEFAULT '', position INTEGER DEFAULT 0, active INTEGER DEFAULT 1)")
+    c.execute("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, group_id INTEGER, subcategory_id INTEGER, name TEXT, description TEXT DEFAULT '', image_id TEXT DEFAULT '', data_type TEXT DEFAULT 'id', pricing_type TEXT DEFAULT 'fixed', price_syp TEXT DEFAULT '', price_usd TEXT DEFAULT '', rate_syp REAL DEFAULT 0, rate_usd REAL DEFAULT 0, min_qty REAL DEFAULT 0, max_qty REAL DEFAULT 0, commission_percent REAL DEFAULT 0, unit_name TEXT DEFAULT '', profit_percent REAL DEFAULT 0, input_method TEXT DEFAULT 'qty', position INTEGER DEFAULT 0, active INTEGER DEFAULT 1)")
     c.execute("CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, service_id INTEGER, service_name TEXT, category_name TEXT, subcategory_name TEXT, group_name TEXT DEFAULT '', price_text TEXT, account_id TEXT, data_type TEXT DEFAULT 'id', qty_input TEXT DEFAULT '', final_price TEXT DEFAULT '', status TEXT DEFAULT 'pending', receipt_photo TEXT, txn_number TEXT, payment_method TEXT DEFAULT '', admin_note TEXT, created_at TEXT, updated_at TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS service_quantities (id INTEGER PRIMARY KEY AUTOINCREMENT, service_id INTEGER, label TEXT, price_syp TEXT DEFAULT '', price_usd TEXT DEFAULT '', position INTEGER DEFAULT 0)")
+
     conn.commit()
     conn.close()
     print("DB_OK")
@@ -246,7 +248,7 @@ def get_services(group_id, only_active=True):
 def get_service(service_id):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, description, image_id, data_type, group_id, subcategory_id, pricing_type, price_syp, price_usd, rate_syp, rate_usd, min_qty, max_qty, commission_percent, unit_name FROM services WHERE id=?", (service_id,))
+    c.execute("SELECT id, name, description, image_id, data_type, group_id, subcategory_id, pricing_type, price_syp, price_usd, rate_syp, rate_usd, min_qty, max_qty, commission_percent, unit_name, profit_percent, input_method FROM services WHERE id=?", (service_id,))
     row = c.fetchone()
     conn.close()
     return row
@@ -255,7 +257,7 @@ def get_service(service_id):
 def update_service(service_id, **kwargs):
     if not kwargs:
         return
-    allowed = ["name", "description", "image_id", "data_type", "pricing_type", "price_syp", "price_usd", "rate_syp", "rate_usd", "min_qty", "max_qty", "commission_percent", "unit_name", "active", "position"]
+    allowed = ["name", "description", "image_id", "data_type", "pricing_type", "price_syp", "price_usd", "rate_syp", "rate_usd", "min_qty", "max_qty", "commission_percent", "unit_name", "profit_percent", "input_method", "active", "position"]
     sets = []
     vals = []
     for k, v in kwargs.items():
@@ -369,3 +371,97 @@ def add_direct_service(subcategory_id, name):
     conn.commit()
     conn.close()
     return sid
+def get_direct_services(subcategory_id, only_active=True):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if only_active:
+        c.execute("SELECT id, name, pricing_type, price_syp, price_usd FROM services WHERE subcategory_id=? AND (group_id IS NULL OR group_id=0) AND active=1 ORDER BY position, id", (subcategory_id,))
+    else:
+        c.execute("SELECT id, name, pricing_type, price_syp, price_usd, active FROM services WHERE subcategory_id=? AND (group_id IS NULL OR group_id=0) ORDER BY position, id", (subcategory_id,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def add_direct_service(subcategory_id, name):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("INSERT INTO services (group_id, subcategory_id, name) VALUES (0, ?, ?)", (subcategory_id, name))
+    sid = c.lastrowid
+    conn.commit()
+    conn.close()
+    return sid
+
+
+def migrate_patch5():
+    """إضافة أعمدة profit_percent و input_method للخدمات الموجودة"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("PRAGMA table_info(services)")
+    cols = [col[1] for col in c.fetchall()]
+    if "profit_percent" not in cols:
+        c.execute("ALTER TABLE services ADD COLUMN profit_percent REAL DEFAULT 0")
+        print("✅ إضافة profit_percent")
+    if "input_method" not in cols:
+        c.execute("ALTER TABLE services ADD COLUMN input_method TEXT DEFAULT 'qty'")
+        print("✅ إضافة input_method")
+    conn.commit()
+    conn.close()
+    print("✅ migrate_patch5 انتهى")
+
+
+# ═══════════════ دوال الكميات (Patch 10) ═══════════════
+def add_quantity(service_id, label, price_syp, price_usd):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT MAX(position) FROM service_quantities WHERE service_id=?", (service_id,))
+    row = c.fetchone()
+    pos = (row[0] or 0) + 1
+    c.execute("INSERT INTO service_quantities (service_id, label, price_syp, price_usd, position) VALUES (?, ?, ?, ?, ?)",
+              (service_id, label, price_syp, price_usd, pos))
+    conn.commit()
+    conn.close()
+
+
+def get_quantities(service_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, label, price_syp, price_usd FROM service_quantities WHERE service_id=? ORDER BY position, id", (service_id,))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+
+
+def delete_quantity(qty_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM service_quantities WHERE id=?", (qty_id,))
+    conn.commit()
+    conn.close()
+
+
+def delete_quantities_for_service(service_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM service_quantities WHERE service_id=?", (service_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_quantity(qty_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, service_id, label, price_syp, price_usd FROM service_quantities WHERE id=?", (qty_id,))
+    row = c.fetchone()
+    conn.close()
+    return row
+
+
+def update_quantity(qty_id, label, price_syp, price_usd):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE service_quantities SET label=?, price_syp=?, price_usd=? WHERE id=?",
+              (label, price_syp, price_usd, qty_id))
+    conn.commit()
+    conn.close()
+# ═══════════════ نهاية دوال الكميات ═══════════════
