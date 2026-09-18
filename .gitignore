@@ -15,3 +15,5 @@ data/*.after_*
 data/*.v1_stable
 backups/
 reports/
+backups/
+reports/
