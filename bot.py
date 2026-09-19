@@ -418,7 +418,7 @@ async def payment_choice_handler(update: Update, context: ContextTypes.DEFAULT_T
     await edit_or_reply(query, 
         f"✅ اخترت: *{wallet}*\n"
         f"💵 المبلغ: {amount}\n\n"
-        f"📝 أرسل الآن *ID حسابك*:",
+    f"{('📱 أرسل رقم هاتفك:' if data.get('data_type') == 'phone' else '✏️ أرسل الآن ID حسابك:')}",
         parse_mode="Markdown"
     )
 
@@ -507,6 +507,8 @@ async def receive_txn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     price_line = ""
     if data.get("price_text"):
         price_line = f"💵 المبلغ: {data['price_text']}\n"
+    dtype = data.get("data_type", "id")
+    dtype_label = "📱 رقم الهاتف" if dtype == "phone" else "🎯 ID اللاعب"
     admin_caption = (
         f"🔔 طلب جديد #{oid}\n\n"
         f"👤 العميل: {user.full_name}\n"
@@ -515,7 +517,7 @@ async def receive_txn(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📦 {data['service_name']}\n"
         f"📂 الفرع: {data.get('subcategory_name', '-')}\n"
         f"📋 التصنيف: {data.get('group_name', '-')}\n"
-        f"🎯 البيانات: `{data.get('account_id', '-')}`\n"
+        f"{dtype_label}: `{data.get('account_id', '-')}`\n"
         f"{price_line}"
         f"🔢 رقم العملية: `{txn}`"
     )
@@ -960,8 +962,8 @@ async def admin_srv_detail(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"• العمولة: {comm:g}%\n"
     keyboard = [
         [InlineKeyboardButton("📊 إدارة الكميات", callback_data=f"adm_qty_menu_{sid}")],
+        [InlineKeyboardButton("📝 نوع البيانات", callback_data=f"adm_srvtype_{sid}")],
         [InlineKeyboardButton("💰 تعديل السعر", callback_data=f"adm_srvprice_{sid}")],
-        [InlineKeyboardButton("🔀 تغيير النوع", callback_data=f"adm_srvtype_{sid}")],
         [InlineKeyboardButton("✏️ تعديل الاسم", callback_data=f"adm_editsrv_{sid}")],
         [InlineKeyboardButton("🗑️ حذف", callback_data=f"adm_delsrv_{sid}")],
         [InlineKeyboardButton("◀️ رجوع", callback_data=f"adm_srvs_{gid}")]
@@ -1060,6 +1062,52 @@ async def admin_qty_input_syp(update: Update, context: ContextTypes.DEFAULT_TYPE
     pass
 
 # ═══════════════ نهاية إدارة الكميات ═══════════════
+
+# ═══════════════ نوع البيانات (Patch 12) ═══════════════
+async def admin_srv_datatype_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    sid = int(query.data.replace("adm_srvtype_", ""))
+    srv = get_service(sid)
+    if not srv:
+        await query.edit_message_text("❌ الخدمة غير موجودة")
+        return
+    srv_name = srv[1]
+    current = srv[4] or "id"
+    current_label = "🆔 ID اللاعب" if current == "id" else "📱 رقم هاتف"
+    
+    text = (
+        f"📝 *نوع البيانات للخدمة:* {srv_name}\n\n"
+        f"الحالي: {current_label}\n\n"
+        f"اختر النوع الجديد:"
+    )
+    keyboard = [
+        [InlineKeyboardButton("🆔 ID اللاعب", callback_data=f"adm_settype_id_{sid}")],
+        [InlineKeyboardButton("📱 رقم هاتف", callback_data=f"adm_settype_phone_{sid}")],
+        [InlineKeyboardButton("🔙 رجوع", callback_data=f"adm_srv_{sid}")]
+    ]
+    await edit_or_reply(query, text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def admin_set_datatype(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    parts = query.data.replace("adm_settype_", "").split("_")
+    dtype = parts[0]
+    sid = int(parts[1])
+    update_service(sid, data_type=dtype)
+    
+    label = "🆔 ID اللاعب" if dtype == "id" else "📱 رقم هاتف"
+    await query.edit_message_text(
+        f"✅ تم تحديث نوع البيانات إلى: *{label}*",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 رجوع للخدمة", callback_data=f"adm_srv_{sid}")
+        ]])
+    )
+
+# ═══════════════ نهاية نوع البيانات ═══════════════
+
 
 async def admin_srv_price_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1454,6 +1502,8 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_edit_srv_start, pattern="^adm_editsrv_"))
     app.add_handler(CallbackQueryHandler(admin_del_srv, pattern="^adm_delsrv_"))
     app.add_handler(CallbackQueryHandler(admin_add_srv_start, pattern="^adm_addsrv_"))
+    app.add_handler(CallbackQueryHandler(admin_set_datatype, pattern="^adm_settype_"))
+    app.add_handler(CallbackQueryHandler(admin_srv_datatype_menu, pattern="^adm_srvtype_"))
     app.add_handler(CallbackQueryHandler(admin_srv_detail, pattern="^adm_srv_"))
     app.add_handler(CallbackQueryHandler(admin_srvs_list, pattern="^adm_srvs_"))
     # ═══ handlers الكميات (Patch 10) ═══
