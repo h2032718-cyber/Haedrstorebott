@@ -376,10 +376,10 @@ async def service_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = []
     if psyp:
-        keyboard.append([InlineKeyboardButton(f"💰 سيرياتيل كاش — {psyp}", callback_data="pay_syriatel")])
-        keyboard.append([InlineKeyboardButton(f"💵 شام كاش — {psyp}", callback_data="pay_sham_syp")])
+        keyboard.append([InlineKeyboardButton(f"💰 سيرياتيل كاش — {psyp} ل.س", callback_data="pay_syriatel")])
+        keyboard.append([InlineKeyboardButton(f"💵 شام كاش — {psyp} ل.س", callback_data="pay_sham_syp")])
     if pusd:
-        keyboard.append([InlineKeyboardButton(f"💵 شام كاش — {pusd}", callback_data="pay_sham_usd")])
+        keyboard.append([InlineKeyboardButton(f"💵 شام كاش — ${pusd}", callback_data="pay_sham_usd")])
     keyboard.append([InlineKeyboardButton("◀️ رجوع", callback_data=f"sub_{sub_id}")])
 
     if srv_img:
@@ -517,9 +517,9 @@ async def receive_txn(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📦 {data['service_name']}\n"
         f"📂 الفرع: {data.get('subcategory_name', '-')}\n"
         f"📋 التصنيف: {data.get('group_name', '-')}\n"
-        f"{dtype_label}: `{data.get('account_id', '-')}`\n"
+                f"{dtype_label}: <code>{data.get('account_id', '-')}</code>\n"
         f"{price_line}"
-        f"🔢 رقم العملية: `{txn}`"
+        f"🔢 رقم العملية: <code>{txn}</code>"
     )
     keyboard = [[
         InlineKeyboardButton("✅ موافقة", callback_data=f"approve_{oid}"),
@@ -527,7 +527,7 @@ async def receive_txn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]]
     try:
         await context.bot.send_photo(
-            chat_id=ADMIN_ID, photo=data["photo"], caption=admin_caption,
+            chat_id=ADMIN_ID, photo=data["photo"], caption=admin_caption, parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except Exception as e:
@@ -1258,14 +1258,46 @@ async def admin_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         ptype = state.get("ptype", "fixed")
         try:
             if ptype == "fixed":
-                if "|" in text:
-                    parts = [p.strip() for p in text.split("|")]
-                    update_service(sid, price_syp=parts[0], price_usd=parts[1] if len(parts) > 1 else "")
-                elif text.startswith("$"):
-                    update_service(sid, price_usd=text)
-                else:
-                    update_service(sid, price_syp=text)
-                await update.message.reply_text(f"✅ تم حفظ السعر: {text}")
+                # ═══ الحل الجديد: سطرين (ل.س + $) أو سطر واحد ═══
+                lines_in = [ln.strip() for ln in text.split("\n") if ln.strip()]
+                
+                price_syp = ""
+                price_usd = ""
+                
+                for ln in lines_in:
+                    # إذا يبدأ بـ $ → دولار
+                    if ln.startswith("$"):
+                        price_usd = ln.replace("$", "").strip()
+                    # إذا ينتهي بـ $ → دولار
+                    elif ln.endswith("$"):
+                        price_usd = ln.replace("$", "").strip()
+                    # إذا فيه "ل.س" → ليرة
+                    elif "ل.س" in ln or "ليره" in ln or "ليرة" in ln:
+                        price_syp = ln.replace("ل.س", "").replace("ليره", "").replace("ليرة", "").strip()
+                    # سطر أول بدون رمز → ليرة
+                    elif not price_syp:
+                        # إذا فيه نقطة عشرية → يمكن دولار
+                        try:
+                            float(ln)
+                            if "." in ln and not price_syp:
+                                price_syp = ln  # افتراضي: سطر أول = ليرة
+                            else:
+                                price_syp = ln
+                        except ValueError:
+                            price_syp = ln
+                    # سطر ثاني → دولار
+                    elif not price_usd:
+                        price_usd = ln.replace("$", "").strip()
+                
+                update_service(sid, price_syp=price_syp, price_usd=price_usd)
+                
+                # عرض التأكيد
+                msg = f"✅ تم حفظ السعر:\n"
+                if price_syp:
+                    msg += f"💰 ل.س: {price_syp}\n"
+                if price_usd:
+                    msg += f"💵 $: {price_usd}"
+                await update.message.reply_text(msg)
             elif ptype == "commission":
                 comm = float(text)
                 update_service(sid, commission_percent=comm)
