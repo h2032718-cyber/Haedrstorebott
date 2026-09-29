@@ -1472,8 +1472,48 @@ async def photo_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 
+# ═══════════════ النسخ الاحتياطي التلقائي ═══════════════
+import threading as _threading
+import glob as _glob
+import shutil as _shutil
+import time as _time
+from datetime import datetime as _datetime
+
+def _auto_backup_loop():
+    """نسخة كل ساعة + تنظيف تلقائي"""
+    while True:
+        try:
+            _time.sleep(3600)  # كل ساعة
+            ts = _datetime.now().strftime("%Y%m%d_%H")
+            src = 'data/bot.db'
+            dst = f'data/bot.db.hourly_{ts}'
+            
+            if not _glob.glob(src):
+                continue
+            
+            _shutil.copy(src, dst)
+            print(f"[BACKUP] {dst}")
+            
+            # تنظيف: احذف النسخ الأقدم من 24 ساعة
+            now = _time.time()
+            for f in _glob.glob('data/bot.db.hourly_*'):
+                if _time.time() - __import__('os').path.getmtime(f) > 86400:
+                    __import__('os').remove(f)
+                    print(f"[BACKUP-CLEAN] {f}")
+        except Exception as e:
+            print(f"[BACKUP-ERROR] {e}")
+
+def _start_backup_thread():
+    """تشغيل النسخ الاحتياطي في thread منفصل"""
+    t = _threading.Thread(target=_auto_backup_loop, daemon=True)
+    t.start()
+    print("[BACKUP] النسخ التلقائي شغّال — كل ساعة")
+# ═══════════════ نهاية النسخ الاحتياطي ═══════════════
+
+
 def main():
     init_db()
+    _start_backup_thread()  # ✅ نسخ احتياطي تلقائي
     logger.info("Bot starting...")
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_error_handler(error_handler)
