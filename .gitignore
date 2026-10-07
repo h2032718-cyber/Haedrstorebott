@@ -17,3 +17,18 @@ backups/
 reports/
 backups/
 reports/
+
+# Backup files
+bot.py.v*
+data/bot.db.v*
+bot.py.before_*
+bot.py.after_*
+bot.py.*_fixed
+bot.py.*_stable
+data/bot.db.before_*
+data/bot.db.after_*
+data/bot.db.*_fixed
+data/bot.db.*_stable
+data/bot.db.hourly_*
+watch_*
+*.bak
