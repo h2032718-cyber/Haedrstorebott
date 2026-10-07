@@ -647,10 +647,23 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
+    """قائمة الطلبات للأدمن"""
+    user = update.effective_user
+    if user.id != ADMIN_ID:
         return
-    await update.message.reply_text("📦 الطلبات تصلك تلقائياً عند إنشائها")
-
+    
+    msg = (
+        "📦 *الطلبات تصل تلقائياً عند إنشائها*\n\n"
+        "ستصلك إشعارات فورية لكل طلب جديد"
+    )
+    
+    # إذا كان استدعاء من نص
+    if update.message:
+        await update.message.reply_text(msg, parse_mode="Markdown")
+    # إذا كان استدعاء من زر
+    elif update.callback_query:
+        await update.callback_query.answer()
+        await edit_or_reply(update.callback_query, msg, parse_mode="Markdown")
 
 async def admin_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
