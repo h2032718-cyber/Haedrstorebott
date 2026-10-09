@@ -303,7 +303,7 @@ async def qty_choice_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         keyboard.append([InlineKeyboardButton(f"💵 شام كاش — {psyp} ل.س", callback_data="pay_sham_syp")])
     if pusd:
         keyboard.append([InlineKeyboardButton(f"💵 شام كاش — ${pusd}", callback_data="pay_sham_usd")])
-    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data=f"srv_{srv_id}")])
+    keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data=f"grp_{grp_id}")])
     await edit_or_reply(query, text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
@@ -647,23 +647,10 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def admin_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """قائمة الطلبات للأدمن"""
-    user = update.effective_user
-    if user.id != ADMIN_ID:
+    if update.effective_user.id != ADMIN_ID:
         return
-    
-    msg = (
-        "📦 *الطلبات تصل تلقائياً عند إنشائها*\n\n"
-        "ستصلك إشعارات فورية لكل طلب جديد"
-    )
-    
-    # إذا كان استدعاء من نص
-    if update.message:
-        await update.message.reply_text(msg, parse_mode="Markdown")
-    # إذا كان استدعاء من زر
-    elif update.callback_query:
-        await update.callback_query.answer()
-        await edit_or_reply(update.callback_query, msg, parse_mode="Markdown")
+    await update.message.reply_text("📦 الطلبات تصلك تلقائياً عند إنشائها")
+
 
 async def admin_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
