@@ -1,34 +1,30 @@
-.env
+# Logs
+*.log
+watch_*
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
-*.log
-data/*.db
-data/*.db-journal
-backup_*/
-.DS_Store
-*.before_*
-*.after_*
-*.v1_stable
-data/*.before_*
-data/*.after_*
-data/*.v1_stable
-backups/
-reports/
-backups/
-reports/
+*.pyd
+.Python
 
-# Backup files
-bot.py.v*
-data/bot.db.v*
-bot.py.before_*
-bot.py.after_*
-bot.py.*_fixed
-bot.py.*_stable
-data/bot.db.before_*
-data/bot.db.after_*
-data/bot.db.*_fixed
-data/bot.db.*_stable
-data/bot.db.hourly_*
-watch_*
-*.bak
+# Database
+data/*.db
+data/bot.db.*
+*.db
+
+# Sensitive
+.env
+config.py
+
+# Backups
+backups/
+
+# Sessions
+*.session
+*.token
+
+# System
+.DS_Store
+Thumbs.db
